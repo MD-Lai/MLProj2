@@ -1,6 +1,7 @@
 """function library for machine learning project 2"""
 import json
 import string
+import ast
 
 def load_data(filename):
     """loads file in data folder as specified by filename"""
@@ -70,7 +71,9 @@ def train_bag(filename):
             # too many edge cases where a word may not want to be split on . or ,
             # e.g. if people accidentally type like.this or,this but don't want to split links
             # deemed to be insignificant anyway. for now
+            # significant errors in dealing with non-alphanumeric and non-spaced languages
             for word in line["text"].split():
+                word = word.strip(" ").lower()
                 stripped = ""
 
                 # strip punctuation off words, already split on spaces
@@ -83,7 +86,7 @@ def train_bag(filename):
                 # add to text data if it's not already there and it's not empty
                 if stripped:
                     if stripped not in data[line["lang"]]["text"]:
-                        data[line["lang"]]["text"].add(stripped.lower())
+                        data[line["lang"]]["text"].add(stripped)
 
             # location
             # some data doesn't have location
@@ -116,41 +119,41 @@ def train_bag(filename):
 
     # now that we're all loaded, write model to file
     # write as {"lang" : lang, "text": [%s,...,%s], "loc": [%s,...,%s]}
+    # convert sets back into lists
     model_name = "model/%s.bag.json" % filename.strip(".json")
     dest = open(model_name, 'w') # rewrites the file every time
-    for lang, info in data.items():
+
+    for lang in data.keys():
+        #data[lang]["text"] = list(data[lang]["text"])
+        #data[lang]["location"] = list(data[lang]["location"])
+
         # lang is the label, text_loc is the sub dict of text and location
         dest.write('{')
         dest.write('"lang": "%s"' % lang)
 
         # each new segment is responsible writing the ", " and label in front of it
 
-        if info["text"]:
+        if data[lang]["text"]:
             dest.write(', "text": ')
-            dest.write(array_to_string_array(info["text"]))
+            json.dump(data[lang]["text"], dest)
 
-        if info["location"]:
+        if data[lang]["location"]:
             dest.write(', "location": ')
-            dest.write(array_to_string_array(info["location"]))
+            json.dump(data[lang]["location"], dest)
 
         dest.write("}\n")
-
     dest.close()
-
     return data
 
-def array_to_string_array(arr):
-    """ converts array to string array [1, 2, "c"] -> '["1", "2", "c"]' """
-    return_string = '["'
-    return_string += '", "'.join(arr).encode("unicode_escape")
-    return_string += '"]'
-
-    return return_string
-
-
-def similarity(filename):
+def similarity(testfile, trainfile):
     """
     compare all testing data to training data and record n-similarities to each lang
-    perhaps stop if has similarity above 70% 
-    perform same cleaning to testing as training
+    perhaps stop if has similarity above 70% to a particular language
+    perform same cleaning to testing as training (remove all punc, split on space)
     """
+
+    #load training data first
+    training_data = {}
+    with open("model/%s" % trainfile) as train:
+        for line in json.load(train):
+            print(line)
