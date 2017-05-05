@@ -1,10 +1,9 @@
 """function library for machine learning project 2"""
 import json
 import string
-from pprint import pprint
 
 def load_data(filename):
-    "loads file in data folder as specified by filename"
+    """loads file in data folder as specified by filename"""
     data = []
     with open("data/%s" % (filename)) as load:
         for line in load:
@@ -48,7 +47,7 @@ def train_bag(filename):
             # create new entry for a new language
             if line["lang"] not in data:
                 # dict of language contains dict of text and location
-                data[line["lang"]] = {"text":[], "location":[]}
+                data[line["lang"]] = {"text":set(), "location":set()}
 
             # words
             for word in line["text"].split():
@@ -64,7 +63,7 @@ def train_bag(filename):
                 # add to text data if it's not already there and it's not empty
                 if stripped:
                     if stripped not in data[line["lang"]]["text"]:
-                        data[line["lang"]]["text"].append(stripped.lower())
+                        data[line["lang"]]["text"].add(stripped.lower())
 
             # location
             # some data doesn't have location
@@ -76,7 +75,7 @@ def train_bag(filename):
             except KeyError:
                 loc = ""
 
-            if loc != "":
+            if loc:
                 # split on commas
                 for newloc in loc.split(","):
                     # remove lead/trailing whitespace and cast to lower case
@@ -89,8 +88,8 @@ def train_bag(filename):
                             subloc += chara
 
                     # add to location if not already in
-                    if subloc not in data[line["lang"]]["location"]:
-                        data[line["lang"]]["location"].append(subloc)
+                    if subloc and subloc not in data[line["lang"]]["location"]:
+                        data[line["lang"]]["location"].add(subloc)
 
     # now that we're all loaded, write model to file
     # write as {"lang" : lang, "text": [%s,...,%s], "loc": [%s,...,%s]}
@@ -98,23 +97,31 @@ def train_bag(filename):
     dest = open(model_name, 'w') # rewrites the file every time
     for lang, info in data.items():
         # lang is the label, text_loc is the sub dict of text and location
-        dest.write("{")
-        dest.write("\"lang\": \"%s\"" % lang)
+        dest.write('{')
+        dest.write('"lang": "%s"' % lang)
 
-        # each new segment is responsible writing the ", " in front of it
+        # each new segment is responsible writing the ", " and label in front of it
 
         if info["text"]:
-            dest.write(", \"text\": [")
-            dest.write(", ".join(info["text"]).encode("unicode_escape"))
-            dest.write("]")
+            dest.write(', "text": ')
+            dest.write(array_to_string_array(info["text"]))
 
         if info["location"]:
-            dest.write(", \"location\": [")
-            dest.write(", ".join(info["location"]).encode("unicode_escape"))
-            dest.write("]")
+            dest.write(', "location": ')
+            dest.write(array_to_string_array(info["location"]))
 
         dest.write("}\n")
 
     dest.close()
 
     return data
+
+def array_to_string_array(arr):
+    """ converts array to string array [1, 2, "c"] -> '["1", "2", "c"]' """
+    return_string = '["'
+    return_string += '", "'.join(arr).encode("unicode_escape")
+    return_string += '"]'
+
+    return return_string
+
+
