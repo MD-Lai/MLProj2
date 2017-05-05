@@ -10,6 +10,26 @@ def load_data(filename):
             data.append(json.loads(line))
     return data
 
+def count_n_test_id(filename):
+    """
+    counts the total number of lines with a test id
+    from this we learn there is a 1:1 correspondance of test_id to n_lines
+    """
+    lines = 0
+    test_id = 0
+    uid = 0
+    with open("data/%s" % filename) as c_test:
+        for line in c_test:
+            lines += 1
+            if "id" in line:
+                test_id += 1
+            if "uid" in line:
+                uid += 1
+    print("lines %d"%lines)
+    print("test_id %d"%test_id)
+    print("uid %d"%uid)
+
+
 def print_text_data(data):
     """prints only the text segment of each data point line by line"""
     '''
@@ -27,17 +47,13 @@ def print_text_data(data):
         except UnicodeEncodeError:
             print("Can't print line")
 
-def raw_print_json(filename):
-    """prints raw data in json file"""
-    with open("data/%s" % filename) as json_raw:
-        dat = json.load(json_raw)
-        print(dat)
-
 def train_bag(filename):
     """Bag of Words classification model. Writes to /bag.json in model {"lang": "", words": ""}"""
     # assumes you give correct training data with lang tags
     # structured as {lang: {text: [%s, ..., %s], location:[%s, ..., %s]}}
     data = {}
+    #ignorable_loc = "on my the way to at of going where nearby close north south east west\
+    #up down left right here there anywhere near far wherever you are"
 
     with open("data/%s" % (filename)) as json_raw: # loads entire json data
         for line_j in json_raw: # gets lines out of json data
@@ -50,10 +66,14 @@ def train_bag(filename):
                 data[line["lang"]] = {"text":set(), "location":set()}
 
             # words
+            # a conscious choice was made to strip all punctuation from words. All. Punctuation
+            # too many edge cases where a word may not want to be split on . or ,
+            # e.g. if people accidentally type like.this or,this but don't want to split links
+            # deemed to be insignificant anyway. for now
             for word in line["text"].split():
                 stripped = ""
 
-                # strip punctuation off words
+                # strip punctuation off words, already split on spaces
                 # user names are kept as repeated interactions between users are
                 # likely to be in the same language
                 for chara in word:
@@ -67,22 +87,25 @@ def train_bag(filename):
 
             # location
             # some data doesn't have location
-            try:
+            if "location" in line:
                 loc = line["location"].lower()
                 if loc == "not-given" or loc == "here":
                     loc = ""
-
-            except KeyError:
+            else:
                 loc = ""
 
             if loc:
-                # split on commas
-                for newloc in loc.split(","):
+                # split on commas, e.g. Gorkha, Nepal and just Gorkha should be considered related
+                for newloc in loc.split():
                     # remove lead/trailing whitespace and cast to lower case
                     newloc = newloc.strip(" ").lower()
-
                     # remove punctuation
                     subloc = ""
+                    '''
+                    # remove potentially irrelevant data
+                    if subloc not in ignorable_loc:
+                        newloc = ""
+                    '''
                     for chara in newloc:
                         if chara not in string.punctuation:
                             subloc += chara
@@ -125,3 +148,9 @@ def array_to_string_array(arr):
     return return_string
 
 
+def similarity(filename):
+    """
+    compare all testing data to training data and record n-similarities to each lang
+    perhaps stop if has similarity above 70% 
+    perform same cleaning to testing as training
+    """
