@@ -1,0 +1,41 @@
+can ignore any words with an @ in front of it, likely just twitter handles and nonsense for identifying language
+\escape characters and strings are permitted, -non alphabetical languages
+some data entries have full data associated, including location, but not a solid or definite indication of language
+
+FAQ
+What exactly is the task we are performing?
+	Text categorisation, i.e. labelling documents with document categories (one or more categories per document)
+	
+What are the document categories?
+	They are ISO-639-1 language identifiers. The basic premise behind the project is something like, Here's a bunch 
+	of documents in all sorts of languages; sort them into different language piles so, 
+	e.g., someone interested only in Spanish documents can work with only the subset of documents in that language.
+	
+Why do we have development AND test documents?
+	So we can: (a) calibrate our results across different systems and report on them in a directly comparable way, 
+	and (b) optimise our system(s) relative to a mockup of the test documents, in such a way that we are hopefully 
+	simultaneously maximising performance over the test documents when they are finally released (but can't optimise your method to the test data, as you won't have the document categories).
+	
+How does this relate to what we have covered in the subject?
+	Basically everything we have looked at in the subject to date is directly relevant to the project. 
+	If you can't see this, you might like to have a harder look back over your notes
+	
+How are we going to get assessed on "creativity"?
+	In terms of whether you have done something beyond the simple letter of what was in the notes, 
+	whether it be based on a paper you read (in which case you want to make sure you cite it) or some weird and 
+	wonderful idea you came up with independently (where you should look over the literature anyway to make sure you aren't reinventing the wheel 
+	-- resources like Google Scholar are your friend in this regard).
+	
+Do we need to do anything with encoding detection?
+	You can assume that everything is in utf-8.
+	
+Can we train our classifiers on other training documents?
+	There are various language identification datasets on the web, but no, you cannot make use of these for any of your official submissions.
+	
+What happens if our system(s) suck?
+	Given that most of the marks for the project are in terms of creativity, soundness, clarity, and structure, as long as you have done sensible things,
+	can describe clearly what you did, and have done a bit outside the lecture notes, you will get a good mark for the project — the marks for raw performance are a tiny component of the overall project mark.
+	
+Can we use online language identification services in our submission?
+	Your system must run be trained over the provide training documents, so no, you can't use a pre-trained or online language
+	identification service as one of your official runs. That's not to say you aren't allowed to calibrate your system(s) against other people's systems, however, and report these numbers in your report.
