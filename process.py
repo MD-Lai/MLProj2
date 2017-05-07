@@ -1,8 +1,7 @@
-"""function library for machine learning project 2"""
+"""function library for machine learning project 2
+TODO remove all folder dependencies """
 import json
 import string
-import ast
-
 def load_data(filename):
     """loads file in data folder as specified by filename"""
     data = []
@@ -48,6 +47,14 @@ def print_text_data(data):
         except UnicodeEncodeError:
             print("Can't print line")
 
+def clean_word(word):
+    """removes punctuation from word"""
+    stripped = ""
+    for chara in word.lower():
+        if chara not in string.punctuation:
+            stripped += chara
+    return stripped
+
 def train_bag(filename):
     """Bag of Words classification model. Writes to /bag.json in model {"lang": "", words": ""}"""
     # assumes you give correct training data with lang tags
@@ -64,7 +71,7 @@ def train_bag(filename):
             # create new entry for a new language
             if line["lang"] not in data:
                 # dict of language contains dict of text and location
-                data[line["lang"]] = {"text":set(), "location":set()}
+                data[line["lang"]] = {"text":set(), "location":set(), "displayname":set()}
 
             # words
             # a conscious choice was made to strip all punctuation from words. All. Punctuation
@@ -73,15 +80,7 @@ def train_bag(filename):
             # deemed to be insignificant anyway. for now
             # significant errors in dealing with non-alphanumeric and non-spaced languages
             for word in line["text"].split():
-                word = word.strip(" ").lower()
-                stripped = ""
-
-                # strip punctuation off words, already split on spaces
-                # user names are kept as repeated interactions between users are
-                # likely to be in the same language
-                for chara in word:
-                    if chara not in string.punctuation:
-                        stripped += chara
+                stripped = clean_word(word)
 
                 # add to text data if it's not already there and it's not empty
                 if stripped:
@@ -91,61 +90,63 @@ def train_bag(filename):
             # location
             # some data doesn't have location
             if "location" in line:
-                loc = line["location"].lower()
-                if loc == "not-given" or loc == "here":
+                loc = line["location"]
+                if loc == "not-given":
                     loc = ""
-            else:
-                loc = ""
-
-            if loc:
-                # split on commas, e.g. Gorkha, Nepal and just Gorkha should be considered related
-                for newloc in loc.split():
-                    # remove lead/trailing whitespace and cast to lower case
-                    newloc = newloc.strip(" ").lower()
+                    # split on spaces, e.g. Gorkha, Nepal and just Gorkha should be related
+                    # jeddah , saudi arabia would be split to [jeddah, saudi, arabia]
+                for subloc in loc.split():
+                    # split handles removing spaces b/w characters as well as stripping
                     # remove punctuation
-                    subloc = ""
-                    '''
-                    # remove potentially irrelevant data
-                    if subloc not in ignorable_loc:
-                        newloc = ""
-                    '''
-                    for chara in newloc:
-                        if chara not in string.punctuation:
-                            subloc += chara
+                    subloc = clean_word(subloc)
 
                     # add to location if not already in
                     if subloc and subloc not in data[line["lang"]]["location"]:
                         data[line["lang"]]["location"].add(subloc)
 
+
+            # display name
+            if "displayname" in line:
+                dispname = line["displayname"]
+
+                for subname in dispname.split():
+                    # split handles removing spaces b/w characters as well as stripping
+                    # remove punctuation
+                    subname = clean_word(subname)
+
+                    # add to displaynames if not already in
+                    if subname and subname not in data[line["lang"]]["displayname"]:
+                        data[line["lang"]]["displayname"].add(subname)
+
+
     # now that we're all loaded, write model to file
-    # write as {"lang" : lang, "text": [%s,...,%s], "loc": [%s,...,%s]}
-    # convert sets back into lists
-    model_name = "model/%s.bag.json" % filename.strip(".json")
-    dest = open(model_name, 'w') # rewrites the file every time
+    # write as {"lang" : lang, "text": [%s,...,%s], "loc": [%s,...,%s], "displayname": [%s,...,%s]}
+    with open("model/%s.bag.json" % filename.strip(".json"), 'w') as dest:
+        for lang, info in data.items():
 
-    for lang in data.keys():
-        #data[lang]["text"] = list(data[lang]["text"])
-        #data[lang]["location"] = list(data[lang]["location"])
+            # lang is the label
+            dest.write('{')
+            dest.write('"lang": "%s"' % lang)
 
-        # lang is the label, text_loc is the sub dict of text and location
-        dest.write('{')
-        dest.write('"lang": "%s"' % lang)
+            # each new segment is responsible writing the ', "%s"' in front of it
 
-        # each new segment is responsible writing the ", " and label in front of it
+            if info["text"]:
+                dest.write(', "text": ')
+                json.dump(list(info["text"]), dest)
 
-        if data[lang]["text"]:
-            dest.write(', "text": ')
-            json.dump(data[lang]["text"], dest)
+            if info["location"]:
+                dest.write(', "location": ')
+                json.dump(list(info["location"]), dest)
 
-        if data[lang]["location"]:
-            dest.write(', "location": ')
-            json.dump(data[lang]["location"], dest)
+            if info["displayname"]:
+                dest.write(', "displayname": ')
+                json.dump(list(info["displayname"]), dest)
 
-        dest.write("}\n")
-    dest.close()
+            dest.write("}\n")
+
     return data
 
-def similarity(testfile, trainfile):
+def classify_all(testfile, modelfile):
     """
     compare all testing data to training data and record n-similarities to each lang
     perhaps stop if has similarity above 70% to a particular language
@@ -153,7 +154,143 @@ def similarity(testfile, trainfile):
     """
 
     #load training data first
-    training_data = {}
-    with open("model/%s" % trainfile) as train:
-        for line in json.load(train):
-            print(line)
+    model_data = {}
+    with open("model/%s" % modelfile) as train:
+        for line_j in train:
+            line = json.loads(line_j)
+            # assumes perfect input, no repeated language
+            # if language not loaded, create a new bag -> this should always happen
+            if line["lang"] not in model_data:
+                model_data[line["lang"]] = {"text":set(), "location":set(), "displayname":set()}
+
+                if "text" in line:
+                    model_data[line["lang"]]["text"] = set(line["text"])
+
+                if "location" in line:
+                    model_data[line["lang"]]["location"] = set(line["location"])
+
+                if "displayname" in line:
+                    model_data[line["lang"]]["displayname"] = set(line["location"])
+
+    with open("output/%s.cfd.json" % testfile.strip(".json"), 'w') as out:
+        with open("test/%s" % testfile) as test:
+            for line_t in test:
+                line_t = json.loads(line_t)
+                nmatches = classify_row(line_t, model_data)
+                if len(nmatches) == 0:
+                    this_lang = "unk"
+                else:
+                    this_lang = most_frequent(nmatches)
+
+                out.write('{"lang": "%s", "id": "%s"}\n' % (this_lang, line_t["id"]))
+
+
+def classify_row(line, model_data):
+    """ classifies a test line based on given training data """
+    formatted_line = {"text":set(), "location":set(), "displayname":set()}
+
+    # decompose it into text, location, user, if available
+    # test_line won't have language
+    # cleaning the input line the same as all the above
+    # i.e. lower case, split into words, strip punctuation
+
+    if "text" in line:
+        # lower case, strip, clean
+        for word in line["text"].split():
+            # split handles removing spaces b/w characters as well as stripping
+            # remove punctuation
+            word = clean_word(word)
+                # add to text data if it's not already there and it's not empty
+            if word and word not in formatted_line["text"]:
+                formatted_line["text"].add(word)
+
+    # location
+    # some data doesn't have location
+    if "location" in line:
+        loc = line["location"]
+        if loc == "not-given":
+            loc = ""
+            # split on spaces, e.g. Gorkha, Nepal and just Gorkha should be considered related
+            # jeddah , saudi arabia would be split to [jeddah, saudi, arabia]
+        for subloc in loc.split():
+            # split handles removing spaces b/w characters as well as stripping
+            # remove punctuation
+            subloc = clean_word(subloc)
+
+            # add to location if not already in
+            if subloc and subloc not in formatted_line["location"]:
+                formatted_line["location"].add(subloc)
+
+    if "displayname" in line:
+        for subname in line["displayname"].split():
+            subname = clean_word(subname)
+
+            if subname and subname not in formatted_line["displayname"]:
+                formatted_line["displayname"].add(subname)
+
+
+    nmatches = {} # {"%s": number} % language
+
+    # compare each item in data to field_data
+    # compare text->text location->location displayname->displayname
+    # or text->text text->location text->displayname location->text etc...
+    # probably just 1:1 mapping
+
+    for field, field_data in formatted_line.items():
+        for lang, data in model_data.items():
+            nlang = len(field_data.intersection(data[field]))
+
+            if nlang > 0:
+                if lang not in nmatches:
+                    nmatches[lang] = nlang
+                else:
+                    nmatches[lang] += nlang
+
+    return nmatches
+    """
+    for field, field_data in formatted_line.items():
+        # field is "text" "location" "displayname"
+        # field_data is formatted_line[field] (which is also a set)
+        for lang, model_data in model_data.items():
+            # lang being the language with these words
+            # data should be {"text":set(), "location":set(), "displayname":set()}
+            if lang not in nmatches:
+                nmatches[lang] = 0
+
+            # what you're really doing is comparing everything in the model to items in the line
+            for f_data in field_data:
+                if field in model_data:
+                    for
+    """
+
+def most_frequent(nmatches):
+    """ returns language with the highest number of matches """
+    most_frequent_lang = ""
+    highest_freq = 0
+
+    for lang, hits in nmatches.items():
+        if hits > highest_freq:
+            highest_freq = hits
+            most_frequent_lang = lang
+
+    return most_frequent_lang
+
+def check_accuracy(trueclasses, classifiedfile):
+    """ checks accuracy of classifier based on given files
+    TODO store correct/total for each language"""
+    # assumes you've ran train_bag("training.json")
+    # and classify_all("unclassified.json", "training.bag.json")
+    trueclasses = "verify/%s" % trueclasses
+    classifiedfile = "output/%s" % classifiedfile
+
+    totalinstances = 0
+    totalcorrect = 0
+
+    with open(trueclasses) as verify:
+        with open(classifiedfile) as classified:
+            for cfd, inp in zip(classified, verify):
+                cfd = json.loads(cfd)
+                inp = json.loads(inp)
+                totalcorrect += 1 if cfd["lang"] == inp["lang"] else 0
+                totalinstances += 1
+    print("Accuracy %f" %  (1.0*totalcorrect/totalinstances))
