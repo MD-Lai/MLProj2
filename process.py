@@ -1,35 +1,10 @@
 """function library for machine learning project 2
 TODO remove all folder dependencies """
 import json
+import csv
 import string
-def load_data(filename):
-    """loads file in data folder as specified by filename"""
-    data = []
-    with open("data/%s" % (filename)) as load:
-        for line in load:
-            data.append(json.loads(line))
-    return data
-
-def count_n_test_id(filename):
-    """
-    counts the total number of lines with a test id
-    from this we learn there is a 1:1 correspondance of test_id to n_lines
-    """
-    lines = 0
-    test_id = 0
-    uid = 0
-    with open("data/%s" % filename) as c_test:
-        for line in c_test:
-            lines += 1
-            if "id" in line:
-                test_id += 1
-            if "uid" in line:
-                uid += 1
-    print("lines %d"%lines)
-    print("test_id %d"%test_id)
-    print("uid %d"%uid)
-
-
+import time
+import sys
 def print_text_data(data):
     """prints only the text segment of each data point line by line"""
     '''
@@ -58,12 +33,12 @@ def clean_word(word):
 def train_bag(filename):
     """Bag of Words classification model. Writes to /bag.json in model {"lang": "", words": ""}"""
     # assumes you give correct training data with lang tags
-    # structured as {lang: {text: [%s, ..., %s], location:[%s, ..., %s]}}
+    # structured as {lang: {text: [%s, ..., %s], location:[%s, ..., %s], displayname:[%s,...,%s]}}
     data = {}
     #ignorable_loc = "on my the way to at of going where nearby close north south east west\
     #up down left right here there anywhere near far wherever you are"
 
-    with open("data/%s" % (filename)) as json_raw: # loads entire json data
+    with open("%s.json" % (filename)) as json_raw: # loads entire json data
         for line_j in json_raw: # gets lines out of json data
             line = json.loads(line_j)
             # get words from json file
@@ -121,7 +96,7 @@ def train_bag(filename):
 
     # now that we're all loaded, write model to file
     # write as {"lang" : lang, "text": [%s,...,%s], "loc": [%s,...,%s], "displayname": [%s,...,%s]}
-    with open("model/%s.bag.json" % filename.strip(".json"), 'w') as dest:
+    with open("%s.bag.json" % filename, 'w') as dest:
         for lang, info in data.items():
 
             # lang is the label
@@ -144,7 +119,7 @@ def train_bag(filename):
 
             dest.write("}\n")
 
-    return data
+    #return data
 
 def classify_all(testfile, modelfile):
     """
@@ -155,7 +130,7 @@ def classify_all(testfile, modelfile):
 
     #load training data first
     model_data = {}
-    with open("model/%s" % modelfile) as train:
+    with open("%s.json" % modelfile) as train:
         for line_j in train:
             line = json.loads(line_j)
             # assumes perfect input, no repeated language
@@ -170,10 +145,13 @@ def classify_all(testfile, modelfile):
                     model_data[line["lang"]]["location"] = set(line["location"])
 
                 if "displayname" in line:
-                    model_data[line["lang"]]["displayname"] = set(line["location"])
+                    model_data[line["lang"]]["displayname"] = set(line["displayname"])
 
-    with open("output/%s.cfd.json" % testfile.strip(".json"), 'w') as out:
-        with open("test/%s" % testfile) as test:
+    lines = 0
+    # renames "test.json" to "test.cfd.csv"
+    with open("%s.cfd.csv" % testfile, 'w') as out:
+        out.write('docid,lang\n')
+        with open("%s.json" % testfile) as test:
             for line_t in test:
                 line_t = json.loads(line_t)
                 nmatches = classify_row(line_t, model_data)
@@ -182,7 +160,10 @@ def classify_all(testfile, modelfile):
                 else:
                     this_lang = most_frequent(nmatches)
 
-                out.write('{"lang": "%s", "id": "%s"}\n' % (this_lang, line_t["id"]))
+                #out.write('{"lang": "%s", "id": "%s"}\n' % (this_lang, line_t["id"]))
+                out.write('test%04d,%s\n' % (lines, this_lang))
+                #out.write('{"lang": "%s"}\n' % (this_lang))
+                lines += 1
 
 
 def classify_row(line, model_data):
@@ -269,19 +250,20 @@ def most_frequent(nmatches):
     highest_freq = 0
 
     for lang, hits in nmatches.items():
-        if hits > highest_freq:
+        if hits >= highest_freq:
             highest_freq = hits
             most_frequent_lang = lang
 
     return most_frequent_lang
 
-def check_accuracy(trueclasses, classifiedfile):
-    """ checks accuracy of classifier based on given files
-    TODO store correct/total for each language"""
+def check_accuracy_json(trueclasses, classifiedfile):
+    """ checks accuracy of classifier based on given files """
     # assumes you've ran train_bag("training.json")
     # and classify_all("unclassified.json", "training.bag.json")
-    trueclasses = "verify/%s" % trueclasses
-    classifiedfile = "output/%s" % classifiedfile
+    trueclasses = "%s.json" % trueclasses
+    classifiedfile = "%s.json" % classifiedfile
+
+    langs = {}
 
     totalinstances = 0
     totalcorrect = 0
@@ -291,6 +273,74 @@ def check_accuracy(trueclasses, classifiedfile):
             for cfd, inp in zip(classified, verify):
                 cfd = json.loads(cfd)
                 inp = json.loads(inp)
-                totalcorrect += 1 if cfd["lang"] == inp["lang"] else 0
+                if inp["lang"] not in langs:
+                    langs[inp["lang"]] = {}
+                    langs[inp["lang"]]["total"] = 0
+                    langs[inp["lang"]]["correct"] = 0
+
+                if cfd["lang"] == inp["lang"]:
+                    totalcorrect += 1
+                    langs[inp["lang"]]["correct"] += 1
+
+                langs[inp["lang"]]["total"] += 1
                 totalinstances += 1
-    print("Accuracy %f" %  (1.0*totalcorrect/totalinstances))
+    for lang, acc in langs.items():
+        print(lang, acc)
+    print("Total Instances: %d" % totalinstances)
+    print("Total Correct: %d" % totalcorrect)
+    print("Accuracy %f%%" %  (100.0*totalcorrect/totalinstances))
+
+def check_accuracy_csv(trueclasses, classifiedfile):
+    """ check accuracy modified for csv"""
+    trueclasses = "%s.json" % trueclasses
+    classifiedfile = "%s.csv" % classifiedfile
+
+    langs = {}
+
+    totalinstances = 0
+    totalcorrect = 0
+    with open(trueclasses) as verify:
+        with open(classifiedfile) as classified:
+            cfd_row = csv.reader(classified, delimiter = ',')
+            next(cfd_row)
+            for cfd, inp in zip(cfd_row, verify):
+                inp = json.loads(inp)
+                if inp["lang"] not in langs:
+                    langs[inp["lang"]] = {}
+                    langs[inp["lang"]]["total"] = 0
+                    langs[inp["lang"]]["correct"] = 0
+
+                if cfd[1] == inp["lang"]:
+                    totalcorrect += 1
+                    langs[inp["lang"]]["correct"] += 1
+
+                langs[inp["lang"]]["total"] += 1
+                totalinstances += 1
+    for lang, acc in langs.items():
+        print(lang, acc)
+    print("Total Correct: %d" % totalcorrect)
+    print("Total Instances: %d" % totalinstances)
+    print("Accuracy %f%%" %  (100.0*totalcorrect/totalinstances))
+
+def run(train_root, verify_root):
+    ''' runs and outputs models and classifications as a file and does accuracy check
+    input run(file to train on, file with correct classifications) both without .json'''
+    sys.stdout.write('Training...')
+    train_bag(train_root)
+    sys.stdout.write('Complete\n')
+    sys.stdout.flush()
+
+    time.sleep(1)
+
+    sys.stdout.write('Classifying...')
+    classify_all(verify_root, train_root + '.bag')
+    sys.stdout.write('Complete\n')
+    sys.stdout.flush()
+
+    time.sleep(1)
+
+    print("Accuracy")
+    check_accuracy_csv(verify_root, verify_root + '.cfd')
+
+    print("Complete")
+    print("Check output file %s.cfd" % verify_root)
