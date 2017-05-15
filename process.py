@@ -155,7 +155,7 @@ def classify_all(testfile, modelfile):
             for line_t in test:
                 line_t = json.loads(line_t)
                 nmatches = classify_row(line_t, model_data)
-                if len(nmatches) == 0:
+                if len(nmatches) <= 1:
                     this_lang = "unk"
                 else:
                     this_lang = most_frequent(nmatches)
@@ -301,7 +301,7 @@ def check_accuracy_csv(trueclasses, classifiedfile):
     totalcorrect = 0
     with open(trueclasses) as verify:
         with open(classifiedfile) as classified:
-            cfd_row = csv.reader(classified, delimiter = ',')
+            cfd_row = csv.reader(classified, delimiter=',')
             next(cfd_row)
             for cfd, inp in zip(cfd_row, verify):
                 inp = json.loads(inp)
