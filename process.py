@@ -155,7 +155,7 @@ def classify_all(testfile, modelfile):
             for line_t in test:
                 line_t = json.loads(line_t)
                 nmatches = classify_row(line_t, model_data)
-                if len(nmatches) <= 1:
+                if len(nmatches) == 0:
                     this_lang = "unk"
                 else:
                     this_lang = most_frequent(nmatches)
@@ -318,6 +318,7 @@ def check_accuracy_csv(trueclasses, classifiedfile):
                 totalinstances += 1
     for lang, acc in langs.items():
         print(lang, acc)
+    print("%d languages classified" % len(langs))
     print("Total Correct: %d" % totalcorrect)
     print("Total Instances: %d" % totalinstances)
     print("Accuracy %f%%" %  (100.0*totalcorrect/totalinstances))
