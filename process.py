@@ -9,7 +9,7 @@ def print_text_data(data):
     """prints only the text segment of each data point line by line"""
     '''
     data = []
-    with open("data/%s" % (filename)) as load:
+    with open("data/%s" % (trainfile)) as load:
         for line in load:
             data.append(json.loads(line))
     '''
@@ -30,7 +30,7 @@ def clean_word(word):
             stripped += chara
     return stripped
 
-def train_bag(filename):
+def train_bag(trainfile):
     """Bag of Words classification model. Writes to /bag.json in model {"lang": "", words": ""}"""
     # assumes you give correct training data with lang tags
     # structured as {lang: {text: [%s, ..., %s], location:[%s, ..., %s], displayname:[%s,...,%s]}}
@@ -38,7 +38,7 @@ def train_bag(filename):
     #ignorable_loc = "on my the way to at of going where nearby close north south east west\
     #up down left right here there anywhere near far wherever you are"
 
-    with open("%s.json" % (filename)) as json_raw: # loads entire json data
+    with open("%s.json" % (trainfile)) as json_raw: # loads entire json data
         for line_j in json_raw: # gets lines out of json data
             line = json.loads(line_j)
             # get words from json file
@@ -96,7 +96,7 @@ def train_bag(filename):
 
     # now that we're all loaded, write model to file
     # write as {"lang" : lang, "text": [%s,...,%s], "loc": [%s,...,%s], "displayname": [%s,...,%s]}
-    with open("%s.bag.json" % filename, 'w') as dest:
+    with open("%s.bag.json" % trainfile, 'w') as dest:
         for lang, info in data.items():
 
             # lang is the label
@@ -120,6 +120,26 @@ def train_bag(filename):
             dest.write("}\n")
 
     #return data
+
+def train_vec(trainfile):
+    """
+    Create a vectorised representation of a language.
+    Meaning counts the occurunce of letters.
+    """
+    data = {}
+    with open("%s.json" % trainfile, 'r') as raw_data:
+        for line in raw_data:
+            line = json.loads(line)
+            if line["lang"] not in data:
+                data[line["lang"]] = []
+
+            # Just processes words
+            for let in clean_word(line["lang"]):
+                is_in = False
+                for let_count in data[line["lang"]]:
+                    
+
+
 
 def classify_all(testfile, modelfile):
     """
