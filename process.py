@@ -363,40 +363,6 @@ def highest_cos(nmatches):
             highest_lang = lang
     return highest_lang
 
-def check_accuracy_json(trueclasses, classifiedfile):
-    """ checks accuracy of classifier based on given files """
-    # assumes you've ran train_bag("training.json")
-    # and classify_all("unclassified.json", "training.bag.json")
-    trueclasses = "%s.json" % trueclasses
-    classifiedfile = "%s.json" % classifiedfile
-
-    langs = {}
-
-    totalinstances = 0
-    totalcorrect = 0
-
-    with open(trueclasses) as verify:
-        with open(classifiedfile) as classified:
-            for cfd, inp in zip(classified, verify):
-                cfd = json.loads(cfd)
-                inp = json.loads(inp)
-                if inp["lang"] not in langs:
-                    langs[inp["lang"]] = {}
-                    langs[inp["lang"]]["total"] = 0
-                    langs[inp["lang"]]["correct"] = 0
-
-                if cfd["lang"] == inp["lang"]:
-                    totalcorrect += 1
-                    langs[inp["lang"]]["correct"] += 1
-
-                langs[inp["lang"]]["total"] += 1
-                totalinstances += 1
-    for lang, acc in langs.items():
-        print(lang, acc, "%f%%" % (100.0* acc["correct"]/acc['total']))
-    print("Total Instances: %d" % totalinstances)
-    print("Total Correct: %d" % totalcorrect)
-    print("Accuracy %f%%" %  (100.0*totalcorrect/totalinstances))
-
 def check_accuracy_csv(trueclasses, classifiedfile):
     """ check accuracy modified for csv"""
     trueclasses = "%s.json" % trueclasses
@@ -425,7 +391,7 @@ def check_accuracy_csv(trueclasses, classifiedfile):
                 totalinstances += 1
 
     for lang, acc in langs.items():
-        print(lang, acc, "%.2f%%" % (100.0* acc["correct"]/acc['total']))
+        print(lang, acc, "acc: %.2f%%" % (100.0* acc["correct"]/acc['total']))
 
     print("%d languages classified" % len(langs))
     print("Total Correct: %d" % totalcorrect)
