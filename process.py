@@ -1,33 +1,38 @@
-"""function library for machine learning project 2
-TODO remove all folder dependencies """
+"""
+Marvin Der Hann Lai 754672 
+function library for machine learning project 2
+USAGE:
+On first run:
+    leave out the file extension when specifying files to use, 
+    assumes usage of json
+
+    run_bag("train_file", "test_file","verify_file")
+    or
+    run_vec("train_file", "test_file", "verfy_file")
+
+On subsequent runs with the same training file:
+
+    run_bag("train_file", "test_file", "verify_file", retrain=False)
+    or
+    run_vec("train_file", "test_file", "verify_file", retrain=False)
+
+This will train the model, classify test instances, verify and print accuracy
+NOTE: assumes verify file and test file have same ordering of data points
+"""
 import json
 import csv
 import string
 import time
 import sys
-def print_text_data(data):
-    """prints only the text segment of each data point line by line"""
-    '''
-    data = []
-    with open("data/%s" % (trainfile)) as load:
-        for line in load:
-            data.append(json.loads(line))
-    '''
-    for data_point in data:
-        try:
-            print(data_point["lang"].encode('utf8', 'strict') + " "
-                  + data_point['text'].encode('utf8', 'strict'))
-        except KeyError:
-            print("no lang" + data_point['text'].encode('utf8', 'strict'))
-        except UnicodeEncodeError:
-            print("Can't print line")
-
+import math
 def clean_word(word):
     """removes punctuation from word"""
     stripped = ""
-    for chara in word.lower():
-        if chara not in string.punctuation:
-            stripped += chara
+    word = word.lower()
+    if not word[0] == '@' and not "http" in word:
+        for chara in word:
+            if chara not in string.punctuation and not chara == '\n':
+                stripped += chara
     return stripped
 
 def train_bag(trainfile):
@@ -38,11 +43,16 @@ def train_bag(trainfile):
     #ignorable_loc = "on my the way to at of going where nearby close north south east west\
     #up down left right here there anywhere near far wherever you are"
 
+    line_count = 0
+
     with open("%s.json" % (trainfile)) as json_raw: # loads entire json data
         for line_j in json_raw: # gets lines out of json data
+            line_count += 1
             line = json.loads(line_j)
             # get words from json file
 
+            if not line_count % 500:
+                print("documenting line %d" % line_count)
             # create new entry for a new language
             if line["lang"] not in data:
                 # dict of language contains dict of text and location
@@ -93,7 +103,6 @@ def train_bag(trainfile):
                     if subname and subname not in data[line["lang"]]["displayname"]:
                         data[line["lang"]]["displayname"].add(subname)
 
-
     # now that we're all loaded, write model to file
     # write as {"lang" : lang, "text": [%s,...,%s], "loc": [%s,...,%s], "displayname": [%s,...,%s]}
     with open("%s.bag.json" % trainfile, 'w') as dest:
@@ -126,22 +135,37 @@ def train_vec(trainfile):
     Create a vectorised representation of a language.
     Meaning counts the occurunce of letters.
     """
+    line_count = 0
     data = {}
     with open("%s.json" % trainfile, 'r') as raw_data:
         for line in raw_data:
+            line_count += 1
             line = json.loads(line)
+
             if line["lang"] not in data:
-                data[line["lang"]] = []
+                data[line["lang"]] = {}
 
             # Just processes words
-            for let in clean_word(line["lang"]):
-                is_in = False
-                for let_count in data[line["lang"]]:
-                    
+            if not line_count % 500:
+                print("documenting line %d" % line_count)
+            for word in line["text"].split():
+                for let in clean_word(word):
+                    if let not in string.punctuation:
+                        if let in data[line["lang"]]:
+                            data[line["lang"]][let] += 1
+                        else:
+                            data[line["lang"]][let] = 1
 
+    # no post processing, no trimming of less frequent letters
 
+    with open("%s.vec.json" % trainfile, 'w') as vecout:
+        for lang, let_count in data.items():
+            vecout.write('{')
+            vecout.write('"lang": "%s", "let": ' % lang)
+            json.dump(let_count, vecout, sort_keys=True)
+            vecout.write('}\n')
 
-def classify_all(testfile, modelfile):
+def classify_all_bag(testfile, modelfile):
     """
     compare all testing data to training data and record n-similarities to each lang
     perhaps stop if has similarity above 70% to a particular language
@@ -168,13 +192,13 @@ def classify_all(testfile, modelfile):
                     model_data[line["lang"]]["displayname"] = set(line["displayname"])
 
     lines = 0
-    # renames "test.json" to "test.cfd.csv"
-    with open("%s.cfd.csv" % testfile, 'w') as out:
+    # renames "test.json" to "test.bag.cfd.csv"
+    with open("%s.bag.cfd.csv" % testfile, 'w') as out:
         out.write('docid,lang\n')
         with open("%s.json" % testfile) as test:
             for line_t in test:
                 line_t = json.loads(line_t)
-                nmatches = classify_row(line_t, model_data)
+                nmatches = possible_matches_bag(line_t, model_data)
                 if len(nmatches) == 0:
                     this_lang = "unk"
                 else:
@@ -186,7 +210,7 @@ def classify_all(testfile, modelfile):
                 lines += 1
 
 
-def classify_row(line, model_data):
+def possible_matches_bag(line, model_data):
     """ classifies a test line based on given training data """
     formatted_line = {"text":set(), "location":set(), "displayname":set()}
 
@@ -211,7 +235,7 @@ def classify_row(line, model_data):
         loc = line["location"]
         if loc == "not-given":
             loc = ""
-            # split on spaces, e.g. Gorkha, Nepal and just Gorkha should be considered related
+            # split on spaces, e.g. Gorkha, Nepal and just Gorkha should be considered related.
             # jeddah , saudi arabia would be split to [jeddah, saudi, arabia]
         for subloc in loc.split():
             # split handles removing spaces b/w characters as well as stripping
@@ -248,26 +272,11 @@ def classify_row(line, model_data):
                     nmatches[lang] += nlang
 
     return nmatches
-    """
-    for field, field_data in formatted_line.items():
-        # field is "text" "location" "displayname"
-        # field_data is formatted_line[field] (which is also a set)
-        for lang, model_data in model_data.items():
-            # lang being the language with these words
-            # data should be {"text":set(), "location":set(), "displayname":set()}
-            if lang not in nmatches:
-                nmatches[lang] = 0
-
-            # what you're really doing is comparing everything in the model to items in the line
-            for f_data in field_data:
-                if field in model_data:
-                    for
-    """
 
 def most_frequent(nmatches):
     """ returns language with the highest number of matches """
-    most_frequent_lang = ""
-    highest_freq = 0
+    most_frequent_lang = "unk"
+    highest_freq = 3 # number chosen by incrementing and seeing where the accuracy level drops
 
     for lang, hits in nmatches.items():
         if hits >= highest_freq:
@@ -275,6 +284,84 @@ def most_frequent(nmatches):
             most_frequent_lang = lang
 
     return most_frequent_lang
+
+def get_clear_vector(vector):
+    """ gets a new vector with same items as given vector with values 0'd """
+    clean = {}
+    for let in vector.keys():
+        clean[let] = 0
+
+    return clean
+
+def classify_all_vec(testfile, modelfile):
+    """ classifies according to the vectorised model """
+    model_data = {}
+    with open("%s.json" % modelfile) as model:
+        # reload model data
+        for line in model:
+            line = json.loads(line)
+
+            if line["lang"] not in model_data:
+                model_data[line["lang"]] = line["let"]
+            #print(model_data)
+    # model data loaded
+    # writing the file.cfd.csv as the classified values
+    lines = 0
+    with open("%s.vec.cfd.csv" % testfile, 'w') as out:
+        out.write('docid,lang\n')
+        with open("%s.json" % testfile) as test:
+            for line_t in test:
+                line_t = json.loads(line_t)
+                matches = possible_matches_vec(line_t, model_data)
+                this_lang = highest_cos(matches)
+
+                out.write('test%04d,%s\n' % (lines, this_lang))
+
+                lines += 1
+
+def possible_matches_vec(line, model_data):
+    """ returns list of all cosine angle between line and model_data """
+    nmatches = {}
+
+    for lang, let_dict in model_data.items():
+        zero_vect = get_clear_vector(let_dict)
+
+        for word in line["text"].split():
+            for let in clean_word(word):
+                if let not in string.punctuation:
+                    if let in zero_vect:
+                        zero_vect[let] += 1
+
+        nmatches[lang] = let_cos(zero_vect, let_dict)
+    #print(line["lang"])
+    #print(nmatches)
+    return nmatches
+
+def let_cos(v1, v2):
+    """ assumes v1 and v2 have same features """
+
+    ab = 0
+    a = 0
+    b = 0
+
+    for let in v1.keys():
+        ab += v1[let] * v2[let]
+        a += v1[let] * v1[let]
+        b += v2[let] * v2[let]
+
+    if not a or not b:
+        return 0
+    return 1.0 * ab/(math.sqrt(a) * math.sqrt(b))
+
+def highest_cos(nmatches):
+    """ returns the language with the highest cos score above 0.6 """
+    highest_val = 0
+    highest_lang = "unk"
+    for lang, cos in nmatches.items():
+        if cos > highest_val:
+            highest_val = cos
+            highest_lang = lang
+    return highest_lang
 
 def check_accuracy_json(trueclasses, classifiedfile):
     """ checks accuracy of classifier based on given files """
@@ -305,7 +392,7 @@ def check_accuracy_json(trueclasses, classifiedfile):
                 langs[inp["lang"]]["total"] += 1
                 totalinstances += 1
     for lang, acc in langs.items():
-        print(lang, acc)
+        print(lang, acc, "%f%%" % (100.0* acc["correct"]/acc['total']))
     print("Total Instances: %d" % totalinstances)
     print("Total Correct: %d" % totalcorrect)
     print("Accuracy %f%%" %  (100.0*totalcorrect/totalinstances))
@@ -336,32 +423,62 @@ def check_accuracy_csv(trueclasses, classifiedfile):
 
                 langs[inp["lang"]]["total"] += 1
                 totalinstances += 1
+
     for lang, acc in langs.items():
-        print(lang, acc)
+        print(lang, acc, "%.2f%%" % (100.0* acc["correct"]/acc['total']))
+
     print("%d languages classified" % len(langs))
     print("Total Correct: %d" % totalcorrect)
     print("Total Instances: %d" % totalinstances)
-    print("Accuracy %f%%" %  (100.0*totalcorrect/totalinstances))
+    print("Accuracy %.2f%%" %  (100.0*totalcorrect/totalinstances))
 
-def run(train_root, verify_root):
+def run_bag(train_root, classify_root, verify_root="", retrain=True, verify=True):
     ''' runs and outputs models and classifications as a file and does accuracy check
     input run(file to train on, file with correct classifications) both without .json'''
-    sys.stdout.write('Training...')
-    train_bag(train_root)
-    sys.stdout.write('Complete\n')
-    sys.stdout.flush()
+    if retrain:
+        sys.stdout.write('Training...')
+        train_bag(train_root)
+        sys.stdout.write('Complete\n')
+        sys.stdout.flush()
 
-    time.sleep(1)
+        time.sleep(1)
 
     sys.stdout.write('Classifying...')
-    classify_all(verify_root, train_root + '.bag')
+    classify_all_bag(classify_root, train_root + '.bag')
     sys.stdout.write('Complete\n')
     sys.stdout.flush()
 
     time.sleep(1)
 
-    print("Accuracy")
-    check_accuracy_csv(verify_root, verify_root + '.cfd')
+    if verify and verify_root:
+        print("Accuracy")
+        check_accuracy_csv(verify_root, classify_root + '.bag.cfd')
+        print("Complete")
 
-    print("Complete")
-    print("Check output file %s.cfd" % verify_root)
+    print("Check output file %s.bag.cfd" % verify_root)
+
+def run_vec(train_root, classify_root, verify_root="", retrain=True, verify=True):
+    ''' runs and outputs models and classifications as a file and does accuracy check
+    input run(file to train on, file with correct classifications) both without .json'''
+    if retrain:
+        sys.stdout.write('Training...')
+        train_vec(train_root)
+        sys.stdout.write('Complete\n')
+        sys.stdout.flush()
+
+        time.sleep(1)
+
+    sys.stdout.write('Classifying...')
+    classify_all_vec(classify_root, train_root + '.vec')
+    sys.stdout.write('Complete\n')
+    sys.stdout.flush()
+
+    time.sleep(1)
+
+    if verify and verify_root:
+        print("Accuracy")
+        check_accuracy_csv(verify_root, classify_root + '.vec.cfd')
+        print("Complete")
+
+    print("Check output file %s.vec.cfd" % verify_root)
+
